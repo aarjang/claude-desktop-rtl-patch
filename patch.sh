@@ -179,7 +179,9 @@ PLIST
 
   # 4. Standalone Mach-O executables in Contents/Helpers/
   while IFS= read -r f; do
-    file "$f" 2>/dev/null | grep -q 'Mach-O' && codesign -s - -f "$f" 2>/dev/null || true
+    if file "$f" 2>/dev/null | grep -q 'Mach-O'; then
+      codesign -s - -f "$f" 2>/dev/null || true
+    fi
   done < <(find "$app/Contents/Helpers" -type f 2>/dev/null)
 
   # 5. Outer bundle — no --deep (inner components already signed above)

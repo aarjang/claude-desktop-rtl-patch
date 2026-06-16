@@ -1,6 +1,6 @@
 # Changelog
 
-## Phase 0 — Real-build inspection (2025-06-16)
+## Phase 0 — Real-build inspection (2026-06-16)
 
 Findings from inspecting the real Claude Desktop v1.12603.1 on macOS:
 
