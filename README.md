@@ -7,7 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![macOS](https://img.shields.io/badge/macOS-12%2B-blue)](patch.sh)
 [![Windows](https://img.shields.io/badge/Windows-10%2B-blue)](patch.ps1)
-[![ShellCheck](https://github.com/YOUR_USERNAME/claude-desktop-rtl-patch/actions/workflows/lint.yml/badge.svg)](https://github.com/YOUR_USERNAME/claude-desktop-rtl-patch/actions/workflows/lint.yml)
+[![ShellCheck](https://github.com/aarjang/claude-desktop-rtl-patch/actions/workflows/lint.yml/badge.svg)](https://github.com/aarjang/claude-desktop-rtl-patch/actions/workflows/lint.yml)
 
 Gives Claude Desktop correct **right-to-left (RTL) support** for Persian, Arabic, and Hebrew — on both macOS and Windows. The key improvement over previous patches is **correct mixed-direction text**: a sentence like the one above has an RTL base direction while the Latin words (`React`, `Next.js`, `feature`) and the number (`3000`) stay in their natural left-to-right order within the RTL flow, and punctuation lands on the correct side. No "scrambling."
 
@@ -47,13 +47,13 @@ Install Node.js from <https://nodejs.org>.
 ### One-liner
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/claude-desktop-rtl-patch/main/patch.sh -o patch.sh && bash patch.sh
+curl -fsSL https://raw.githubusercontent.com/aarjang/claude-desktop-rtl-patch/main/patch.sh -o patch.sh && bash patch.sh
 ```
 
 ### Manual
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/claude-desktop-rtl-patch.git
+git clone https://github.com/aarjang/claude-desktop-rtl-patch.git
 cd claude-desktop-rtl-patch
 chmod +x patch.sh
 ./patch.sh
@@ -83,13 +83,13 @@ Select **1 — Install** from the menu. The script will:
 ### One-liner (PowerShell — run as Administrator)
 
 ```powershell
-irm https://raw.githubusercontent.com/YOUR_USERNAME/claude-desktop-rtl-patch/main/patch.ps1 -OutFile patch.ps1; .\patch.ps1
+irm https://raw.githubusercontent.com/aarjang/claude-desktop-rtl-patch/main/patch.ps1 -OutFile patch.ps1; .\patch.ps1
 ```
 
 ### Manual
 
 ```powershell
-git clone https://github.com/YOUR_USERNAME/claude-desktop-rtl-patch.git
+git clone https://github.com/aarjang/claude-desktop-rtl-patch.git
 cd claude-desktop-rtl-patch
 .\patch.ps1
 ```
