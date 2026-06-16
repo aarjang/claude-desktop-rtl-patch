@@ -35,6 +35,35 @@ Old script hardcoded `/Applications/Claude.app`. Fix: check three locations + `m
 
 ---
 
+## v2.1 — Cowork re-sign fix (2026-06-16)
+
+**Root cause:** `codesign -s - -f --deep` on the outer bundle in v2 replaced the full bundle
+signature and stripped all entitlements from every nested binary — including the entitlement
+needed for Cowork's Linux VM.
+
+**Investigation:**
+- Cowork is not a simple in-process feature: it runs a full Linux VM via Apple's
+  Virtualization.framework (`swift_addon.node`, the `@ant/claude-swift` native module).
+- `swift_addon.node` contains an explicit runtime check: if `com.apple.security.virtualization`
+  is absent from the calling process, it returns `entitlement_missing` — which triggers
+  VM bundle deletion and the "Reinstall" prompt in the UI.
+- After v2's ad-hoc re-sign, the Cowork VM started (`Linux VM started successfully`) but
+  failed at `guest_vsock_connect` with `VZErrorDomain Code=1` — the kernel-level vsock
+  requires the virtualization entitlement at the process level.
+
+**Fix (resign_app rewrite):**
+1. Removed `--deep` from the outer bundle `codesign` call. Instead, sign inside-out:
+   dylibs + `.node` addons → each framework (with its own `--deep`) → each helper `.app`
+   → Contents/Helpers executables → outer bundle (no `--deep`).
+2. Added `com.apple.security.virtualization` to the outer bundle's entitlements plist.
+3. Preserved `--options runtime` on all `.node` files (the originals had the hardened-runtime
+   flag; dropping it would break JIT/library loading rules for those binaries).
+
+**Result:** Cowork VM starts fully after patching:
+`guest_vsock_connect → CONNECTED → SDK installed → API reachability: REACHABLE`
+
+---
+
 ## v2 — CSS-first rewrite
 
 - **Payload replaced**: `payload/rtl.js` — pure CSS via `unicode-bidi: plaintext`, no `dir` writes, no DOM mutation, no hand-rolled Unicode detection.

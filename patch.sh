@@ -134,30 +134,60 @@ update_plist_hash() {
   log "Updated hash in: $(dirname "$plist" | sed "s|/Applications/Claude.app/||")"
 }
 
-# ── Ad-hoc re-sign (inside-out) ───────────────────────────────────────────────
+# ── Ad-hoc re-sign (inside-out, Cowork-safe) ─────────────────────────────────
+# Cowork runs a Linux VM via Apple's Virtualization.framework. The Swift native
+# module (swift_addon.node) explicitly checks for com.apple.security.virtualization
+# on the host process and refuses to start the VM if it is missing. We must add
+# this entitlement to the main bundle; the kernel honours it even in ad-hoc sigs.
+#
+# Signing order: dylibs → .node addons → frameworks → helper .apps →
+#   Contents/Helpers executables → outer bundle (no --deep on the outer bundle
+#   so we control the entitlements and don't re-overwrite inner components).
 resign_app() {
   local app="$1"
-  step "Re-signing ad-hoc (inside-out)…"
+  step "Re-signing ad-hoc (inside-out, Cowork-safe)…"
 
-  # dylibs / .node files
-  find "$app/Contents" -name "*.dylib" -o -name "*.node" | while read -r f; do
+  # Write entitlements plist — only what Cowork needs
+  local ent
+  ent=$(mktemp /tmp/claude_vz_ent_XXXXXX.plist)
+  cat > "$ent" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.virtualization</key>
+  <true/>
+</dict>
+</plist>
+PLIST
+
+  # 1. Innermost: dylibs and .node native addons
+  #    --options runtime preserves the hardened-runtime flag the originals carried
+  find "$app/Contents" \( -name "*.dylib" -o -name "*.node" \) | while read -r f; do
     codesign -s - -f --options runtime "$f" 2>/dev/null || true
   done
 
-  # Frameworks (deep)
-  find "$app/Contents/Frameworks" -name "*.framework" | while read -r fw; do
+  # 2. Each framework — use --deep on each individual framework (not on the whole app)
+  find "$app/Contents/Frameworks" -maxdepth 1 -name "*.framework" | while read -r fw; do
     codesign -s - -f --deep "$fw" 2>/dev/null || true
   done
 
-  # Helper bundles
-  find "$app/Contents/Frameworks" -name "*.app" | while read -r helper; do
+  # 3. Each helper .app bundle
+  find "$app/Contents/Frameworks" -maxdepth 1 -name "*.app" | while read -r helper; do
     codesign -s - -f --deep "$helper" 2>/dev/null || true
   done
 
-  # The main bundle
-  codesign -s - -f --deep "$app" 2>/dev/null || true
+  # 4. Standalone Mach-O executables in Contents/Helpers/
+  while IFS= read -r f; do
+    file "$f" 2>/dev/null | grep -q 'Mach-O' && codesign -s - -f "$f" 2>/dev/null || true
+  done < <(find "$app/Contents/Helpers" -type f 2>/dev/null)
 
-  success "Re-signed ad-hoc. (A codesign -v warning about ad-hoc is normal.)"
+  # 5. Outer bundle — no --deep (inner components already signed above)
+  #    The VZ entitlement goes here so the Claude process can use Virtualization.framework
+  codesign -s - -f --entitlements "$ent" "$app" 2>/dev/null || true
+
+  rm -f "$ent"
+  success "Re-signed ad-hoc with com.apple.security.virtualization. (A codesign -v warning is normal.)"
 }
 
 # ── Build the patched ASAR ────────────────────────────────────────────────────

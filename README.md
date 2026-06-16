@@ -140,6 +140,7 @@ This is an **unofficial modification** of Claude Desktop. It may violate [Anthro
 - Ad-hoc code signing on macOS is expected to produce a `codesign -v` warning — this is normal.
 - The patch must be re-applied after each Claude Desktop update.
 - `unicode-bidi: plaintext` is supported by the Chromium engine Electron uses; the minimal JS surface is intentional to reduce breakage risk on future builds.
+- **Cowork tab:** The patch re-signs the app with `com.apple.security.virtualization` so the Cowork Linux VM continues to work. If Cowork shows "Reinstall" after patching, re-run `./patch.sh install` — the VM bundle will restore itself from cache on next launch.
 
 ---
 
