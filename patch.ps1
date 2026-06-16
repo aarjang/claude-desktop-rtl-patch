@@ -155,7 +155,7 @@ function Build-PatchedAsar([string]$pristineAsar, [string]$outAsar) {
     if ($injected -eq 0) { Write-Warn "No new files injected (already patched?)." }
 
     Write-Step "Phase 4: Repacking ASAR..."
-    npx --yes asar pack $tmp $outAsar --unpack '*.node' 2>$null | Out-Null
+    npx --yes asar pack $tmp $outAsar --unpack '{*.node,spawn-helper}' 2>$null | Out-Null
     Remove-Item -Recurse -Force $tmp
     $size = [math]::Round((Get-Item $outAsar).Length / 1MB, 1)
     Write-OK "Repacked → $outAsar ($size MB)"
@@ -337,7 +337,7 @@ function Show-Menu {
 
 # ── Entry ─────────────────────────────────────────────────────────────────────
 switch ($Command) {
-    'install' { Test-Prerequisites; Invoke-Install }
+    'install' { Invoke-Install }
     'restore' { Invoke-Restore }
     'status'  { Invoke-Status }
     'menu'    { Show-Menu }
