@@ -42,6 +42,90 @@ $PATCH_MARKER  = 'CLAUDE RTL PATCH v2 START'
 $BACKUP_DIR    = Join-Path $env:APPDATA 'claude-rtl-patch\backup'
 $PAYLOAD_JS    = Join-Path $PSScriptRoot 'payload\rtl.js'
 
+# Payload embedded so the script works as a single downloaded file.
+# If payload\rtl.js exists beside the script, that file takes precedence (dev override).
+$EMBEDDED_PAYLOAD = @'
+// --- CLAUDE RTL PATCH v2 START ---
+// CSS-first RTL support: unicode-bidi: plaintext lets the browser's Unicode Bidi
+// Algorithm determine paragraph direction from the first strong character.
+// No dir-attribute writes, no element.style.direction mutation, no hand-rolled
+// Unicode range detection. Mixed-direction text (e.g. Persian + Latin + numbers)
+// renders correctly because the UBA handles it natively.
+;(function () {
+  'use strict';
+  if (typeof document === 'undefined' && typeof require === 'undefined') return;
+
+  var STYLE_ID = 'claude-rtl-patch-v2';
+
+  var CSS = [
+    'p, li,',
+    'h1, h2, h3, h4, h5, h6,',
+    'blockquote, td, th, dl, dt, dd {',
+    '  unicode-bidi: plaintext;',
+    '  text-align: start;',
+    '}',
+    'ul, ol {',
+    '  padding-inline-start: 1.5em;',
+    '  text-align: start;',
+    '}',
+    '[contenteditable="true"],',
+    '.ProseMirror {',
+    '  unicode-bidi: plaintext;',
+    '  text-align: start;',
+    '}',
+    'nav a span, nav li span, nav button span,',
+    'aside a span, aside li span, aside button span {',
+    '  unicode-bidi: plaintext;',
+    '  text-align: start;',
+    '}',
+    'pre, code, kbd, samp,',
+    '.code-block__code {',
+    '  direction: ltr !important;',
+    '  unicode-bidi: isolate !important;',
+    '  text-align: left !important;',
+    '}',
+  ].join('\n');
+
+  var _usedWebFrame = false;
+  try {
+    if (typeof require !== 'undefined') {
+      var _elec = require('electron');
+      if (_elec && _elec.webFrame && typeof _elec.webFrame.insertCSS === 'function') {
+        _elec.webFrame.insertCSS(CSS, { cssOrigin: 'author' });
+        _usedWebFrame = true;
+      }
+    }
+  } catch (_err) {}
+
+  if (!_usedWebFrame && typeof document !== 'undefined') {
+    var _timer = null;
+    function _inject() {
+      if (document.getElementById(STYLE_ID)) return;
+      var s = document.createElement('style');
+      s.id = STYLE_ID;
+      s.textContent = CSS;
+      (document.head || document.documentElement).appendChild(s);
+    }
+    function _scheduleInject() {
+      if (_timer) return;
+      _timer = setTimeout(function () { _timer = null; _inject(); }, 100);
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', _inject);
+    } else {
+      _inject();
+    }
+    var _root = document.documentElement || document.head;
+    if (_root) {
+      new MutationObserver(function () {
+        if (!document.getElementById(STYLE_ID)) { _scheduleInject(); }
+      }).observe(_root, { childList: true, subtree: true });
+    }
+  }
+})();
+// --- CLAUDE RTL PATCH v2 END ---
+'@
+
 # ── Phase 0: Locate the app robustly (BUG 2 fix) ─────────────────────────────
 function Find-ClaudeApp {
     $candidates = @(
@@ -85,7 +169,6 @@ function Test-Prerequisites {
     try { node --version | Out-Null } catch { Write-Fail "Node.js required — install from https://nodejs.org" }
     try { npx --version | Out-Null } catch { Write-Fail "npx not found — reinstall Node.js" }
     try { npx --yes asar --version | Out-Null } catch { Write-Fail "asar unavailable — run: npm install -g asar" }
-    if (-not (Test-Path $PAYLOAD_JS)) { Write-Fail "Payload missing: $PAYLOAD_JS" }
     Write-OK "All prerequisites satisfied."
 }
 
@@ -138,7 +221,7 @@ function Build-PatchedAsar([string]$pristineAsar, [string]$outAsar) {
     $renderer = Get-ChildItem (Join-Path $tmp '.vite\renderer\main_window') -Filter 'MainWindowPage-*.js' -ErrorAction SilentlyContinue | Select-Object -First 1
 
     Write-Step "Phase 3: Injecting RTL payload..."
-    $payload = Get-Content $PAYLOAD_JS -Raw
+    $payload = if (Test-Path $PAYLOAD_JS) { Get-Content $PAYLOAD_JS -Raw } else { $EMBEDDED_PAYLOAD }
     $injected = 0
 
     foreach ($target in @($preload) + @($renderer.FullName | Where-Object { $_ })) {

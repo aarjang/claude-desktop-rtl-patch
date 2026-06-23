@@ -82,8 +82,10 @@ Select **1 — Install** from the menu. The script will:
 
 ### One-liner (PowerShell — run as Administrator)
 
+`patch.ps1` is self-contained — the RTL payload is embedded inside it, so a single file is all you need.
+
 ```powershell
-irm https://raw.githubusercontent.com/aarjang/claude-desktop-rtl-patch/main/patch.ps1 -OutFile patch.ps1; .\patch.ps1
+irm https://raw.githubusercontent.com/aarjang/claude-desktop-rtl-patch/main/patch.ps1 -OutFile patch.ps1; powershell -ExecutionPolicy Bypass -File .\patch.ps1
 ```
 
 ### Manual
@@ -91,7 +93,7 @@ irm https://raw.githubusercontent.com/aarjang/claude-desktop-rtl-patch/main/patc
 ```powershell
 git clone https://github.com/aarjang/claude-desktop-rtl-patch.git
 cd claude-desktop-rtl-patch
-.\patch.ps1
+powershell -ExecutionPolicy Bypass -File .\patch.ps1
 ```
 
 Select **1 — Install** from the menu. The script will:
@@ -103,7 +105,7 @@ Select **1 — Install** from the menu. The script will:
 
 **Dry run:**
 ```powershell
-.\patch.ps1 -DryRun
+powershell -ExecutionPolicy Bypass -File .\patch.ps1 -DryRun
 ```
 
 ---
@@ -119,7 +121,7 @@ Select **1 — Install** from the menu. The script will:
 ### Windows
 
 ```powershell
-.\patch.ps1 -Command restore
+powershell -ExecutionPolicy Bypass -File .\patch.ps1 -Command restore
 ```
 
 If the backup is missing (e.g., you deleted it), reinstall Claude Desktop from <https://claude.ai/download>.
@@ -129,7 +131,7 @@ If the backup is missing (e.g., you deleted it), reinstall Claude Desktop from <
 ## After a Claude Desktop update
 
 The patch must be re-applied after every update because Claude Desktop replaces `app.asar`.  
-Run `./patch.sh status` (macOS) or `.\patch.ps1 -Command status` (Windows) to check.
+Run `./patch.sh status` (macOS) or `powershell -ExecutionPolicy Bypass -File .\patch.ps1 -Command status` (Windows) to check.
 
 ---
 
