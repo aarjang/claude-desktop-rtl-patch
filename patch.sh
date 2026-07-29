@@ -34,6 +34,91 @@ PATCHED_ASAR="/private/var/tmp/app.asar.patched.$$"
 TMP_EXTRACT="/tmp/claude_rtl_extract_$$"
 PATCH_MARKER="CLAUDE RTL PATCH v2 START"
 
+# Payload embedded so the script works as a single downloaded file (e.g. curl -o patch.sh).
+# If payload/rtl.js exists beside the script, that file takes precedence (dev override).
+EMBEDDED_PAYLOAD=$(cat <<'PAYLOAD_EOF'
+// --- CLAUDE RTL PATCH v2 START ---
+// CSS-first RTL support: unicode-bidi: plaintext lets the browser Unicode Bidi
+// Algorithm determine paragraph direction from the first strong character.
+// No dir-attribute writes, no element.style.direction mutation, no hand-rolled
+// Unicode range detection. Mixed-direction text (e.g. Persian + Latin + numbers)
+// renders correctly because the UBA handles it natively.
+;(function () {
+  'use strict';
+  if (typeof document === 'undefined' && typeof require === 'undefined') return;
+
+  var STYLE_ID = 'claude-rtl-patch-v2';
+
+  var CSS = [
+    'p, li,',
+    'h1, h2, h3, h4, h5, h6,',
+    'blockquote, td, th, dl, dt, dd {',
+    '  unicode-bidi: plaintext;',
+    '  text-align: start;',
+    '}',
+    'ul, ol {',
+    '  padding-inline-start: 1.5em;',
+    '  text-align: start;',
+    '}',
+    '[contenteditable="true"],',
+    '.ProseMirror {',
+    '  unicode-bidi: plaintext;',
+    '  text-align: start;',
+    '}',
+    'nav a span, nav li span, nav button span,',
+    'aside a span, aside li span, aside button span {',
+    '  unicode-bidi: plaintext;',
+    '  text-align: start;',
+    '}',
+    'pre, code, kbd, samp,',
+    '.code-block__code {',
+    '  direction: ltr !important;',
+    '  unicode-bidi: isolate !important;',
+    '  text-align: left !important;',
+    '}',
+  ].join('\n');
+
+  var _usedWebFrame = false;
+  try {
+    if (typeof require !== 'undefined') {
+      var _elec = require('electron');
+      if (_elec && _elec.webFrame && typeof _elec.webFrame.insertCSS === 'function') {
+        _elec.webFrame.insertCSS(CSS, { cssOrigin: 'author' });
+        _usedWebFrame = true;
+      }
+    }
+  } catch (_err) {}
+
+  if (!_usedWebFrame && typeof document !== 'undefined') {
+    var _timer = null;
+    function _inject() {
+      if (document.getElementById(STYLE_ID)) return;
+      var s = document.createElement('style');
+      s.id = STYLE_ID;
+      s.textContent = CSS;
+      (document.head || document.documentElement).appendChild(s);
+    }
+    function _scheduleInject() {
+      if (_timer) return;
+      _timer = setTimeout(function () { _timer = null; _inject(); }, 100);
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', _inject);
+    } else {
+      _inject();
+    }
+    var _root = document.documentElement || document.head;
+    if (_root) {
+      new MutationObserver(function () {
+        if (!document.getElementById(STYLE_ID)) { _scheduleInject(); }
+      }).observe(_root, { childList: true, subtree: true });
+    }
+  }
+})();
+// --- CLAUDE RTL PATCH v2 END ---
+PAYLOAD_EOF
+)
+
 # ── Phase 0: Locate the app robustly (BUG 2 fix) ─────────────────────────────
 locate_claude() {
   local candidates=(
@@ -70,7 +155,11 @@ check_prerequisites() {
   command -v python3 >/dev/null 2>&1 || die "python3 required (ships with macOS)"
   command -v codesign>/dev/null 2>&1 || die "codesign not found — install Xcode Command Line Tools"
   npx --yes asar --version >/dev/null 2>&1 || die "asar unavailable — run: npm install -g asar"
-  [[ -f "$PAYLOAD_JS" ]] || die "Payload missing: $PAYLOAD_JS"
+  if [[ -f "$PAYLOAD_JS" ]]; then
+    log "Using payload from: $PAYLOAD_JS"
+  else
+    log "Using embedded RTL payload (no payload/rtl.js found beside script)."
+  fi
   success "All prerequisites satisfied."
 }
 
@@ -227,7 +316,12 @@ build_patched_asar() {
       continue
     fi
     local tmp; tmp=$(mktemp)
-    cat "$target" "$PAYLOAD_JS" > "$tmp"
+    if [[ -f "$PAYLOAD_JS" ]]; then
+      cat "$target" "$PAYLOAD_JS" > "$tmp"
+    else
+      cat "$target" > "$tmp"
+      printf '%s\n' "$EMBEDDED_PAYLOAD" >> "$tmp"
+    fi
     mv "$tmp" "$target"
     success "Injected into: $(basename "$target")"
     ((injected++)) || true
